@@ -5524,6 +5524,7 @@
   <java-symbol type="array" name="config_gnssParameters" />
 
   <java-symbol type="string" name="config_systemGameService" />
+  <java-symbol type="string" name="config_systemTelephonyPackage" />
 
   <java-symbol type="string" name="config_supervisedUserCreationPackage"/>
 
