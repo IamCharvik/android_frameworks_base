@@ -316,6 +316,7 @@ public class SecureSettings {
         Settings.Secure.CONTENT_SAFETY_SANDBOXED_IDLE_TIMEOUT_MS,
         Settings.Secure.CONTENT_SAFETY_SETTINGS_IDLE_TIMEOUT_MS,
         Settings.Secure.CONTENT_SAFETY_SETTINGS_UNBIND_TIMEOUT_MS,
+        Settings.Secure.DEFAULT_RESTRICT_NETWORK_DATA,
         Settings.Secure.MANDATORY_BIOMETRICS,
         Settings.Secure.MANDATORY_BIOMETRICS_REQUIREMENTS_SATISFIED,
         Settings.Secure.ADVANCED_PROTECTION_MODE,

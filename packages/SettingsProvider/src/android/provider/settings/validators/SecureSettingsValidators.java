@@ -509,6 +509,8 @@ public class SecureSettingsValidators {
         VALIDATORS.put(Secure.CONTENT_SAFETY_SANDBOXED_UNBIND_TIMEOUT_MS,
                 ANY_LONG_VALIDATOR);
         VALIDATORS.put(Secure.ACCESSIBILITY_MOUSE_KEYS_ENABLED, BOOLEAN_VALIDATOR);
+        VALIDATORS.put(Secure.DEFAULT_RESTRICT_NETWORK_DATA,
+                new InclusiveIntegerRangeValidator(0, 1));
         VALIDATORS.put(Secure.ACCESSIBILITY_MOUSE_KEYS_ACCELERATION,
                 new InclusiveFloatRangeValidator(0, 1.0f));
         VALIDATORS.put(Secure.ACCESSIBILITY_MOUSE_KEYS_MAX_SPEED,
