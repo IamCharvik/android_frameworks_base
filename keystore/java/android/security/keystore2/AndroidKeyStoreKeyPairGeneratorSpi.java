@@ -824,10 +824,11 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
 
             KeyMetadata metadata = null;
             boolean needGenerate = false;
-            if (!"TrickyStoreTeeCheck".equals(mEntryAlias) && 
+            String[] packages = null;
+            if (!"TrickyStoreTeeCheck".equals(mEntryAlias) &&
                 !"trickystore_attestation_key".equals(mEntryAlias)) {
                 try {
-                    String[] packages = ActivityThread.getPackageManager().getPackagesForUid(Process.myUid());
+                    packages = ActivityThread.getPackageManager().getPackagesForUid(Process.myUid());
                     if (TrickyStoreService.getInstance()
                             .needGenerate(Process.myUid(), packages)) {
                         needGenerate = true;
@@ -839,7 +840,7 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
 
             if (needGenerate) {
                 Log.i(TAG, "Generating software key for " + mEntryAlias);
-                
+
                 CertificateGenerator.KeyGenParameters params = new CertificateGenerator.KeyGenParameters();
                 params.keySize = mKeySizeBits;
                 params.algorithm = mKeymasterAlgorithm;
@@ -856,6 +857,39 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                 }
                 if (mKeymasterDigests != null) {
                     for (int d : mKeymasterDigests) params.digest.add(d);
+                }
+
+                if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_EC) {
+                    try {
+                        params.ecCurve = keySizeAndNameToEcCurve(mKeySizeBits, mEcCurveName);
+                    } catch (InvalidAlgorithmParameterException e) {
+                        throw new ProviderException("Unsupported EC curve", e);
+                    }
+                }
+                if (mKeymasterEncryptionPaddings != null) {
+                    for (int p : mKeymasterEncryptionPaddings) params.padding.add(p);
+                }
+                if (mKeymasterSignaturePaddings != null) {
+                    for (int p : mKeymasterSignaturePaddings) {
+                        if (!params.padding.contains(p)) params.padding.add(p);
+                    }
+                }
+                params.packages = packages;
+
+                // KeyMint 3+ reports the MGF1 digests, not the primary digests, under
+                // RSA_OAEP_MGF_DIGEST. mKeymasterMgf1Digests already holds the SHA-1
+                // default when the spec named none, same as the real generation path.
+                if (mKeymasterAlgorithm == KeymasterDefs.KM_ALGORITHM_RSA
+                        && mKeymasterEncryptionPaddings != null
+                        && mKeymasterMgf1Digests != null) {
+                    for (int padding : mKeymasterEncryptionPaddings) {
+                        if (padding == KeymasterDefs.KM_PAD_RSA_OAEP) {
+                            for (int d : mKeymasterMgf1Digests) {
+                                params.rsaOaepMgfDigest.add(d);
+                            }
+                            break;
+                        }
+                    }
                 }
 
                 if (mSpec.isDevicePropertiesAttestationIncluded()) {
@@ -883,24 +917,24 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                         Log.w(TAG, "Failed to set device properties for attestation", e);
                     }
                 }
-                
+
                 KeyPair kp = CertificateGenerator.generateKeyPair(params);
                 if (kp == null) throw new ProviderException("Failed to generate software key");
-                
+
                 int callingUid = Binder.getCallingUid();
-                List<Certificate> chain = 
+                List<Certificate> chain =
                     CertificateGenerator.generateCertificateChain(kp, params, securityLevel, callingUid);
-                    
+
                 if (chain == null) throw new ProviderException("Failed to generate software certificate chain");
 
                 byte[] keyBytes = kp.getPrivate().getEncoded();
-                
+
                 metadata = iSecurityLevel.importKey(descriptor, null,
                          constructKeyImportArguments(), flags, keyBytes);
-                         
+
                 byte[] userCert = null;
                 byte[] chainBytes = null;
-                
+
                 if (chain != null && !chain.isEmpty()) {
                     try {
                         userCert = chain.get(0).getEncoded();
@@ -911,9 +945,9 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                         throw new ProviderException("Failed to encode certificate chain", e);
                     }
                 }
-                
+
                 mKeyStore.updateSubcomponents(descriptor, userCert, chainBytes);
-                
+
             } else {
                  metadata = iSecurityLevel.generateKey(descriptor, mAttestKeyDescriptor,
                         constructKeyGenerationArguments(), flags, additionalEntropy);
@@ -940,7 +974,7 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
             throw new ProviderException(
                     "Failed to construct key object from newly generated key pair.", e);
         } catch (Exception e) {
-             throw new ProviderException("Failed to generate key pair via TrickyStore", e); 
+             throw new ProviderException("Failed to generate key pair via TrickyStore", e);
         } finally {
             if (!success) {
                 try {
@@ -955,7 +989,7 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
         }
     }
 
-    private byte[] encodeCertificateChain(List<Certificate> chain) 
+    private byte[] encodeCertificateChain(List<Certificate> chain)
             throws CertificateEncodingException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         for (Certificate cert : chain) {
@@ -1126,10 +1160,14 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                     KeymasterDefs.KM_TAG_PADDING, padding
             ));
             if (padding == KeymasterDefs.KM_PAD_RSA_OAEP) {
+                // Track if any MGF digest was added
+                final boolean[] mgfDigestAdded = {false};
+
                 ArrayUtils.forEach(mKeymasterMgf1Digests, (mgf1Digest) -> {
                     params.add(KeyStore2ParameterUtils.makeEnum(
                             KeymasterDefs.KM_TAG_RSA_OAEP_MGF_DIGEST, mgf1Digest
                     ));
+                    mgfDigestAdded[0] = true;
                 });
 
                 // If the MGF1 digest setter flag isn't set (i.e. the caller can't specify a custom
@@ -1143,8 +1181,16 @@ public abstract class AndroidKeyStoreKeyPairGeneratorSpi extends KeyPairGenerato
                         if (digest != defaultMgf1Digest) {
                             params.add(KeyStore2ParameterUtils.makeEnum(
                                     KeymasterDefs.KM_TAG_RSA_OAEP_MGF_DIGEST, digest));
+                            mgfDigestAdded[0] = true;
                         }
                     });
+                }
+
+                // KeyMint 3+ requires RSA_OAEP_MGF_DIGEST - ensure at least SHA-1 is present
+                if (!mgfDigestAdded[0]) {
+                    params.add(KeyStore2ParameterUtils.makeEnum(
+                            KeymasterDefs.KM_TAG_RSA_OAEP_MGF_DIGEST,
+                            KeyProperties.Digest.toKeymaster(DEFAULT_MGF1_DIGEST)));
                 }
             }
         });
