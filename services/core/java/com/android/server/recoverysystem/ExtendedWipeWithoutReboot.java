@@ -1,21 +1,12 @@
 package com.android.server.recoverysystem;
 
-import android.annotation.UserIdInt;
-import android.content.Context;
-import android.content.pm.UserInfo;
-import android.os.IVold;
-import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
-import android.os.UserHandle;
 import android.util.Slog;
 
 import com.android.server.LocalServices;
+import com.android.server.StorageManagerInternal;
 import com.android.server.pm.UserManagerInternal;
-
-import java.util.List;
-
-import static java.util.Collections.emptyList;
 
 class ExtendedWipeWithoutReboot {
     static final String TAG = "ExtWipeWithoutReboot";
@@ -23,39 +14,23 @@ class ExtendedWipeWithoutReboot {
     static void run() {
         eraseSecureElement();
 
-        IVold vold = null;
-        try {
-            vold = IVold.Stub.asInterface(ServiceManager.getServiceOrThrow("vold"));
-        } catch (Throwable e) {
-            Slog.e(TAG, "", e);
-        }
-
-        if (vold == null) {
-            Slog.e(TAG, "IVold is null");
+        StorageManagerInternal storageManager =
+                LocalServices.getService(StorageManagerInternal.class);
+        UserManagerInternal userManager = LocalServices.getService(UserManagerInternal.class);
+        if (storageManager == null || userManager == null) {
+            Slog.e(TAG, "Required storage or user manager service is unavailable");
             return;
         }
 
-        try {
-            var um = LocalServices.getService(UserManagerInternal.class);
-            for (int userId : um.getUserIds()) {
-                destroyUserStorageKeys(vold, userId);
+        for (int userId : userManager.getUserIds()) {
+            Slog.d(TAG, "destroying storage keys for user " + userId);
+            try {
+                // Use the API available on the Halogen base. This destroys both CE and DE
+                // keys for internal and adoptable storage.
+                storageManager.destroyUserStorageKeys(userId);
+            } catch (Throwable e) {
+                Slog.e(TAG, "failed to destroy storage keys for user " + userId, e);
             }
-        } catch (Throwable e) {
-            Slog.e(TAG, "", e);
-        }
-
-        Slog.d(TAG, "calling vold.destroySystemStorageKey()");
-        try {
-            vold.destroySystemStorageKey();
-        } catch (Throwable e) {
-            Slog.e(TAG, "", e);
-        }
-
-        Slog.d(TAG, "calling vold.destroyMetadataKey(/data)");
-        try {
-            vold.destroyMetadataKey("/data");
-        } catch (Throwable e) {
-            Slog.e(TAG, "", e);
         }
     }
 
@@ -78,15 +53,4 @@ class ExtendedWipeWithoutReboot {
         }
     }
 
-    private static void destroyUserStorageKeys(IVold vold, @UserIdInt int userId) {
-        Slog.d(TAG, "calling destroyUserStorageKeys for user " + userId);
-        try {
-            // calls destroyUserStorageKeys in vold
-            vold.destroyUserStorageKeys2(userId,
-                    // don't evict loaded keys, it's slow and might cause fatal IO errors
-                    false);
-        } catch (Throwable e) {
-            Slog.w(TAG, "destroyUserStorageKeys2 failed for " + userId, e);
-        }
-    }
 }
