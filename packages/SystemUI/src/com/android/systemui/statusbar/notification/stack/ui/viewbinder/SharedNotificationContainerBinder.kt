@@ -43,6 +43,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.DisposableHandle
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -195,7 +196,7 @@ constructor(
                     }
 
                     if (Flags.bouncerUiRevamp()) {
-                        launch { viewModel.blurRadius.collect { controller.setBlurRadius(it) } }
+                        launch { viewModel.blurRadius.distinctUntilChanged().collect { controller.setBlurRadius(it) } }
                     }
 
                     // When SceneContainer is enabled. fading keyguard elements during this

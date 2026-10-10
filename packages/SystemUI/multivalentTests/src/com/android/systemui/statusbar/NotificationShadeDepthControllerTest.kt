@@ -436,7 +436,7 @@ class NotificationShadeDepthControllerTest : SysuiTestCase() {
 
         statusBarStateListener.onDozeAmountChanged(1f, 1f)
         notificationShadeDepthController.updateBlurCallback.doFrame(0)
-        verify(blurUtils).applyBlur(any(), eq((maxBlur / 2f).toInt()), eq(false), anyFloat())
+        verify(blurUtils).applyBlur(any(), eq(76), eq(false), anyFloat())
     }
 
     @Test
