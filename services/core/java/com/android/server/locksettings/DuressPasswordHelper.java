@@ -49,13 +49,22 @@ public class DuressPasswordHelper {
         backgroundThread.getThreadHandler().post(() -> {
             final boolean isDuressCredential;
             try {
-                isDuressCredential = isDuressCredential(credentialCopy);
+                try {
+                    isDuressCredential = isDuressCredential(credentialCopy);
+                } catch (Throwable e) {
+                    Slog.e(TAG, "duress credential check failed", e);
+                    return;
+                }
             } finally {
                 // invalid credential might be similar to the actual credential
                 credentialCopy.zeroize();
             }
             if (isDuressCredential) {
-                DuressWipe.run(lockSettingsService.getContext());
+                try {
+                    DuressWipe.run(lockSettingsService.getContext());
+                } catch (Throwable e) {
+                    Slog.e(TAG, "duress wipe failed", e);
+                }
             }
         });
     }
