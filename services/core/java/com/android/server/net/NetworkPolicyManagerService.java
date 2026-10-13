@@ -1532,15 +1532,21 @@ public class NetworkPolicyManagerService extends INetworkPolicyManager.Stub {
                 // Clear the cache for the app
                 synchronized (mUidRulesFirstLock) {
                     mInternetPermissionMap.delete(uid);
-                    int userId = UserHandle.getUserId(uid);
-                    UserInfo parentUser = mUserManager.getProfileParent(userId);
-                    if ((!hasInternetPermissionUL(uid) && !isSystemApp(uid)) ||
-                            Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                                    Settings.Secure.DEFAULT_RESTRICT_NETWORK_DATA, 0,
-                                    parentUser == null ? UserHandle.getUserId(uid) : parentUser.id)
-                                    == 1) {
-                        Slog.i(TAG, "ACTION_PACKAGE_ADDED for uid=" + uid + ", no internet");
-                        addUidPolicy(uid, POLICY_REJECT_ALL);
+                    // Skip re-deny on app updates so per-app user grants survive updates
+                    // (deliberate deviation from upstream VOS, which re-denies on update).
+                    final boolean replacing = intent.getBooleanExtra(EXTRA_REPLACING, false);
+                    if (!replacing) {
+                        int userId = UserHandle.getUserId(uid);
+                        UserInfo parentUser = mUserManager.getProfileParent(userId);
+                        if ((!hasInternetPermissionUL(uid) && !isSystemApp(uid)) ||
+                                (!isSystemApp(uid) && Settings.Secure.getIntForUser(
+                                        mContext.getContentResolver(),
+                                        Settings.Secure.DEFAULT_RESTRICT_NETWORK_DATA, 0,
+                                        parentUser == null ? UserHandle.getUserId(uid)
+                                                : parentUser.id) == 1)) {
+                            Slog.i(TAG, "ACTION_PACKAGE_ADDED for uid=" + uid + ", no internet");
+                            addUidPolicy(uid, POLICY_REJECT_ALL);
+                        }
                     }
                     updateRestrictionRulesForUidUL(uid);
                 }
