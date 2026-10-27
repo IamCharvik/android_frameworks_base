@@ -257,6 +257,7 @@ public final class PlayIntegritySpoofService {
         if (content == null || content.isEmpty()) {
             mBuildFields.clear();
             mSystemProps.clear();
+            mDeviceInitialSdkInt = "";
             mConfigLoaded = false;
             if (mVerboseLogs > 0) Log.w(TAG, "No PIF config in Settings.Secure");
             return;
