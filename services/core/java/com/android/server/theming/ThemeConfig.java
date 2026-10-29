@@ -62,7 +62,7 @@ public record ThemeConfig(
                 /* defaultThemeData */context.getResources()
                         .getStringArray(R.array.theming_defaults),
                 /* hardcodedFallback */ new ThemeSettings.Builder()
-                        .setThemeStyle(ThemeStyle.TONAL_SPOT)
+                        .setThemeStyle(ThemeStyle.MONOCHROMATIC)
                         .setColorSource(FieldColorSource.VALUE_PRESET)
                         .setSeedColors(Color.valueOf(0xFF1B6EF3))
                         .build(),
