@@ -691,7 +691,6 @@ public class WallpaperCropper {
             float runtimeSampleSize = getMaxZoomCropSampleSize(cropHint);
             sampleSize = Math.max(sampleSize, Math.max(minimumSampleSize, runtimeSampleSize));
             needScale = sampleSize > 1f;
-            }
 
             if (DEBUG_CROP) {
                 Slog.v(TAG, "crop: w=" + cropHint.width() + " h=" + cropHint.height());
